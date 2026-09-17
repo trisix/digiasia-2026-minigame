@@ -1,5 +1,5 @@
 /**
- * heartificial-generator.js  v2
+ * heartificial-generator.js  v3
  * DigiAsia 2026 — HEART___IFICIAL Campaign Mini Game
  *
  * Depends on: event-image-effects-v2.js  (EventImageFX must be loaded first)
@@ -12,19 +12,36 @@
  *     template:    string,                       // URL of chrome_overlay.png
  *     onProgress:  (pct) => void,                // optional 0–100
  *     quality:     number,                       // JPEG quality 0–1, default 0.92
+ *     dotOptions:  object,                       // override DOT_PHOTO_OPTIONS
+ *     rasterOptions: object,                     // override RASTER_DRAWING_OPTIONS
  *   }) → Promise<Blob>   (JPEG 1920×1200)
  *
  * Compositing order (bottom → top):
  *   1. Black fill
- *   2. User photo  — EventImageFX.dotHalftone() (grey dot-matrix on black)
+ *   2. User photo  — EventImageFX.dotHalftone() (white dot-matrix on black)
  *   3. chrome_overlay.png — KV chrome with transparent photo zone
  *   4. User drawing — EventImageFX.verticalRaster() (green vertical stripes
- *        through the stroke shapes), positioned in the upper drawing zone
+ *        through the stroke shapes), positioned over the _____ dash of HEART___IFICIAL
  *
- * Drawing zone (v2 fix):
- *   Positioned in the UPPER portion of the canvas (above the HEART text band),
- *   horizontally centred.  The flow_description target shows the writing
- *   should appear in the black photo zone above the title typography.
+ * ── Drawing zone (v3) ────────────────────────────────────────────────────────
+ * PSB layer '------' (the dash between HEART and IFICIAL):
+ *   pixel coords: x=712–1207, y=609–630 (canvas 1920×1200)
+ *   % coords:     x=37.1–62.9%, y=50.8–52.5%
+ *
+ * Drawing zone is centred on the dash, with enough height to be legible:
+ *   x = 680px (35.4%) — slight inset from dash left edge
+ *   y = 490px (40.8%) — ~120px above dash top for stroke ascenders
+ *   w = 560px (29.2%) — covers x=680–1240, spanning the full dash width
+ *   h = 260px (21.7%) — covers y=490–750, descends slightly below dash
+ *
+ * ── Tuned parameters (v3, confirmed by human visual QA) ─────────────────────
+ * Dot halftone:
+ *   cellX=7, cellY=7, maxRadius=2.0, aspectX=0.90
+ *   contrast=0.55, gamma=0.70, color='#ffffff'
+ *
+ * Vertical raster:
+ *   pitch=5, stripeWidth=2, contrast=1.10
+ *   maskSource='auto', color='#1ca629'   (campaign accent green)
  */
 
 (function (root, factory) {
@@ -36,65 +53,57 @@
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  // ─── Output dimensions (match KV canvas) ─────────────────────────────────
+  // ─── Output dimensions ────────────────────────────────────────────────────
   const OUTPUT_W = 1920;
   const OUTPUT_H = 1200;
 
-  // ─── Photo zone: full canvas width, upper 87% (matches frame layer height) ─
+  // ─── Photo zone: full canvas, upper 87% ──────────────────────────────────
   const PHOTO_ZONE = {
     x: 0,
     y: 0,
     w: OUTPUT_W,
-    h: Math.round(OUTPUT_H * 0.87),   // ~1041 px
+    h: Math.round(OUTPUT_H * 0.87),  // 1044px — matches 'frame' layer bottom
   };
 
-  // ─── Drawing zone (v2): UPPER area of the black photo region ─────────────
+  // ─── Drawing zone (v3) ───────────────────────────────────────────────────
+  // Derived from PSB layer '------' dash bbox: x=712–1207, y=609–630.
+  // Zone is centred on the dash with generous height so user strokes
+  // (which include ascenders/descenders) align with the underscores.
   //
-  // The screenshot annotation shows "shall be here" pointing to the region
-  // ABOVE the nose/mouth of the face — roughly the upper-left black area,
-  // around y 18–35% of canvas height.
-  //
-  // KV structure:
-  //   y=0   – top edge (neon green/black)
-  //   y=425 – HEART text starts (~35% of 1200)
-  //   y=710 – HEART text ends  (~59%)
-  //   y=794 – "Intelligent Marketing" / subtitle band
-  //   y=867 – 用人心的溫度 tagline
-  //   y=1041– frame bottom / footer start
-  //
-  // Safe drawing zone: above the HEART text band, inside the black photo blob.
-  // x: 8–55% of width (left-centre, avoids the right vertical decorations)
-  // y: 18–38% of height → y=216..456, height=240
+  //   x=680  (35.4%) — 32px left of dash left edge
+  //   y=490  (40.8%) — 120px above dash top
+  //   w=560  (29.2%) — 32px right margin past dash right edge (x=1240)
+  //   h=260  (21.7%) — descends to y=750, ~120px below dash bottom
   const DRAWING_ZONE = {
-    x: Math.round(OUTPUT_W * 0.08),    //  154 px from left
-    y: Math.round(OUTPUT_H * 0.18),    //  216 px from top
-    w: Math.round(OUTPUT_W * 0.50),    //  960 px wide
-    h: Math.round(OUTPUT_H * 0.20),    //  240 px tall
+    x: 680,   // px — fixed to PSB dash coordinates
+    y: 490,   // px
+    w: 560,   // px
+    h: 260,   // px
   };
 
-  // ─── EventImageFX dot-halftone preset for the user photo ─────────────────
+  // ─── Dot halftone options (v3 tuned params + white dots) ─────────────────
   //
-  // Based on PRESETS.portraitDots but:
-  //   • fit:'cover' (not 'contain') so the face fills the full canvas
-  //   • background: null — we pre-fill black and draw on top; avoids double clear
-  //   • color: '#888' — slightly brighter than the reference grey (#777)
-  //     to compensate for real-world selfie dynamic range being narrower
-  //     than a pro photo studio shot
+  // Changes from v2:
+  //   cellX/Y: 5 → 7      (slightly coarser grid, closer to PSB reference)
+  //   aspectX: 0.72 → 0.90 (dots nearly circular per human QA)
+  //   gamma: 1.20 → 0.70   (brightens mid-tones, more dot visibility)
+  //   color: '#888' → '#ffffff'  (white dots on black per brief)
+  //   fit: 'cover'  (unchanged — face fills full canvas)
   const DOT_PHOTO_OPTIONS = {
     fit:         'cover',
-    background:  null,
-    color:       '#888',
-    cellX:       5,
-    cellY:       5,
+    background:  null,       // we pre-fill black
+    color:       '#ffffff',  // white dots on black
+    cellX:       7,
+    cellY:       7,
     shape:       'ellipse',
-    aspectX:     0.72,
+    aspectX:     0.90,       // nearly circular
     aspectY:     1.00,
     minRadius:   0.10,
     maxRadius:   2.00,
     black:       0.07,
     white:       0.94,
     contrast:    0.55,
-    gamma:       1.20,
+    gamma:       0.70,       // brighter mid-tones
     levels:      12,
     toneMode:    'radius+alpha',
     alphaMin:    0.18,
@@ -103,20 +112,18 @@
     vignette:    0,
   };
 
-  // ─── EventImageFX vertical-raster preset for the drawing ─────────────────
+  // ─── Vertical raster options (v3) ─────────────────────────────────────────
   //
-  // The drawing canvas has a transparent background with green strokes.
-  // verticalRaster in 'alpha' mode uses the stroke alpha as the mask,
-  // then renders only the columns that fall on a stripe interval.
-  // Result: the handwriting appears as green vertical-stripe-filled shapes.
+  // color: '#1ca629' (campaign accent green, confirmed by campaign team)
+  // maskSource: 'alpha' — drawing canvas has transparent bg + opaque strokes
   const RASTER_DRAWING_OPTIONS = {
-    fit:         'stretch',   // drawing covers exactly its target zone
-    background:  null,        // transparent — composited on top
-    color:       '#00ff3c',   // campaign neon green
+    fit:         'stretch',   // drawing fills its zone exactly
+    background:  null,
+    color:       '#1ca629',   // campaign accent green
     pitch:       5,
     stripeWidth: 2,
     phase:       0,
-    maskSource:  'alpha',     // drawing canvas has transparent bg + opaque strokes
+    maskSource:  'alpha',     // use stroke alpha, not luminance
     black:       0.05,
     white:       0.88,
     contrast:    1.10,
@@ -159,111 +166,104 @@
         img3.src = src;
         return;
       }
-      reject(new Error('Unsupported image source type: ' + typeof src));
+      reject(new Error('Unsupported image source: ' + typeof src));
     });
   }
 
   /**
-   * Apply dot-halftone effect to the user photo onto destCtx.
-   *
-   * Uses EventImageFX.dotHalftone() which must be available globally.
-   * Creates a scratch canvas sized to PHOTO_ZONE, renders the effect there,
-   * then pastes it into the destination at PHOTO_ZONE offset.
-   *
+   * Dot-halftone the user photo onto destCtx at PHOTO_ZONE.
    * @param {CanvasRenderingContext2D} destCtx
    * @param {HTMLImageElement} photoImg
+   * @param {object} [overrides]  partial DOT_PHOTO_OPTIONS overrides
    */
-  function applyPhotoEffect(destCtx, photoImg) {
+  function applyPhotoEffect(destCtx, photoImg, overrides) {
     if (typeof EventImageFX === 'undefined') {
-      throw new Error(
-        'EventImageFX not found. ' +
-        'Load event-image-effects-v2.js before heartificial-generator.js.'
-      );
+      throw new Error('EventImageFX not found — load event-image-effects-v2.js first.');
     }
+    var opts = Object.assign({}, DOT_PHOTO_OPTIONS, overrides || {});
 
     var scratch = document.createElement('canvas');
     scratch.width  = PHOTO_ZONE.w;
     scratch.height = PHOTO_ZONE.h;
 
-    EventImageFX.dotHalftone(photoImg, scratch, DOT_PHOTO_OPTIONS);
-
+    EventImageFX.dotHalftone(photoImg, scratch, opts);
     destCtx.drawImage(scratch, PHOTO_ZONE.x, PHOTO_ZONE.y);
   }
 
   /**
-   * Apply vertical-raster effect to the user's drawing and composite it
+   * Apply vertical-raster effect to the drawing canvas and composite it
    * into DRAWING_ZONE on destCtx.
    *
-   * The drawing canvas is first rendered at DRAWING_ZONE dimensions into a
-   * scratch canvas, then verticalRaster() is applied (alpha mask mode),
-   * then the result is pasted into the destination.
+   * The drawing content is scaled to fit within DRAWING_ZONE (preserve aspect),
+   * centred, then passed to verticalRaster with alpha mask mode.
    *
    * @param {CanvasRenderingContext2D} destCtx
    * @param {HTMLCanvasElement} drawingCanvas
+   * @param {object} [overrides]  partial RASTER_DRAWING_OPTIONS overrides
    */
-  function applyDrawingEffect(destCtx, drawingCanvas) {
+  function applyDrawingEffect(destCtx, drawingCanvas, overrides) {
     if (!drawingCanvas || !drawingCanvas.width || !drawingCanvas.height) return;
 
-    // Check if the drawing canvas actually has any content
-    var checkCtx = drawingCanvas.getContext('2d');
+    // Guard: skip if the canvas has no actual strokes
+    var checkCtx  = drawingCanvas.getContext('2d');
     var checkData = checkCtx.getImageData(0, 0, drawingCanvas.width, drawingCanvas.height).data;
     var hasContent = false;
-    for (var ci = 3; ci < checkData.length; ci += 4) {
+    for (var ci = 3; ci < checkData.length; ci += 16) {
       if (checkData[ci] > 10) { hasContent = true; break; }
     }
     if (!hasContent) return;
 
     if (typeof EventImageFX === 'undefined') {
-      throw new Error('EventImageFX not found.');
+      throw new Error('EventImageFX not found — load event-image-effects-v2.js first.');
     }
 
+    var opts = Object.assign({}, RASTER_DRAWING_OPTIONS, overrides || {});
     var zone = DRAWING_ZONE;
 
-    // Scale drawing into a scratch canvas sized to the drawing zone
+    // Scale drawing to fit inside zone while preserving aspect ratio
+    var dW = drawingCanvas.width;
+    var dH = drawingCanvas.height;
+    var scale  = Math.min(zone.w / dW, zone.h / dH);
+    var sw = dW * scale;
+    var sh = dH * scale;
+    var sx = (zone.w - sw) / 2;
+    var sy = (zone.h - sh) / 2;
+
+    // Draw scaled content onto a zone-sized scratch canvas
     var scratch = document.createElement('canvas');
     scratch.width  = zone.w;
     scratch.height = zone.h;
     var sctx = scratch.getContext('2d');
-
-    // Cover-scale: fit drawing into zone preserving aspect ratio, centred
-    var dW = drawingCanvas.width;
-    var dH = drawingCanvas.height;
-    var scaleX = zone.w / dW;
-    var scaleY = zone.h / dH;
-    var scale  = Math.min(scaleX, scaleY);
-    var sw = dW * scale;
-    var sh = dH * scale;
-    var sx = (zone.w  - sw) / 2;
-    var sy = (zone.h  - sh) / 2;
     sctx.drawImage(drawingCanvas, 0, 0, dW, dH, sx, sy, sw, sh);
 
-    // Apply vertical raster effect onto a result canvas
+    // Apply raster effect
     var result = document.createElement('canvas');
     result.width  = zone.w;
     result.height = zone.h;
+    EventImageFX.verticalRaster(scratch, result, opts);
 
-    EventImageFX.verticalRaster(scratch, result, RASTER_DRAWING_OPTIONS);
-
-    // Paste result into destination at drawing zone position
+    // Composite onto destination
     destCtx.drawImage(result, zone.x, zone.y);
   }
 
-  // ─── Main export ──────────────────────────────────────────────────────────
+  // ─── Main generate ────────────────────────────────────────────────────────
 
   /**
-   * Generate the final campaign poster.
-   *
-   * @param {Object} opts
-   * @param {HTMLCanvasElement|HTMLImageElement|File|Blob|string} opts.photo
-   * @param {HTMLCanvasElement} opts.drawing
-   * @param {string} opts.template   URL to chrome_overlay.png
-   * @param {function} [opts.onProgress]  callback(0–100)
-   * @param {number}   [opts.quality]     JPEG quality, default 0.92
+   * @param {object} opts
+   * @param {*}        opts.photo          user selfie (File/Blob/img/canvas/URL)
+   * @param {HTMLCanvasElement} opts.drawing  handwriting canvas
+   * @param {string}   opts.template       URL to chrome_overlay.png
+   * @param {function} [opts.onProgress]   callback(0–100)
+   * @param {number}   [opts.quality]      JPEG quality 0–1, default 0.92
+   * @param {object}   [opts.dotOptions]   partial DOT_PHOTO_OPTIONS overrides
+   * @param {object}   [opts.rasterOptions] partial RASTER_DRAWING_OPTIONS overrides
    * @returns {Promise<Blob>}
    */
   function generate(opts) {
-    var onProgress = opts.onProgress || function () {};
-    var quality    = opts.quality != null ? opts.quality : 0.92;
+    var onProgress    = opts.onProgress || function () {};
+    var quality       = opts.quality != null ? opts.quality : 0.92;
+    var dotOverrides  = opts.dotOptions    || {};
+    var rastOverrides = opts.rasterOptions || {};
 
     onProgress(5);
 
@@ -276,20 +276,19 @@
 
       onProgress(30);
 
-      // ── Output canvas ──────────────────────────────────────────────────
-      var canvas  = document.createElement('canvas');
+      var canvas = document.createElement('canvas');
       canvas.width  = OUTPUT_W;
       canvas.height = OUTPUT_H;
       var ctx = canvas.getContext('2d');
 
-      // Layer 1 — black background
+      // Layer 1 — black base
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, OUTPUT_W, OUTPUT_H);
 
       onProgress(40);
 
-      // Layer 2 — dot-halftone photo effect
-      applyPhotoEffect(ctx, photoImg);
+      // Layer 2 — dot-halftone photo
+      applyPhotoEffect(ctx, photoImg, dotOverrides);
 
       onProgress(65);
 
@@ -298,14 +297,13 @@
 
       onProgress(80);
 
-      // Layer 4 — vertical-raster drawing effect
+      // Layer 4 — vertical-raster drawing (over the _____ dash)
       if (opts.drawing) {
-        applyDrawingEffect(ctx, opts.drawing);
+        applyDrawingEffect(ctx, opts.drawing, rastOverrides);
       }
 
       onProgress(95);
 
-      // ── Export ────────────────────────────────────────────────────────
       return new Promise(function (resolve, reject) {
         canvas.toBlob(
           function (blob) {
@@ -321,12 +319,12 @@
 
   // ─── Public ───────────────────────────────────────────────────────────────
   return {
-    generate:              generate,
-    OUTPUT_W:              OUTPUT_W,
-    OUTPUT_H:              OUTPUT_H,
-    PHOTO_ZONE:            PHOTO_ZONE,
-    DRAWING_ZONE:          DRAWING_ZONE,
-    DOT_PHOTO_OPTIONS:     DOT_PHOTO_OPTIONS,
+    generate:               generate,
+    OUTPUT_W:               OUTPUT_W,
+    OUTPUT_H:               OUTPUT_H,
+    PHOTO_ZONE:             PHOTO_ZONE,
+    DRAWING_ZONE:           DRAWING_ZONE,
+    DOT_PHOTO_OPTIONS:      DOT_PHOTO_OPTIONS,
     RASTER_DRAWING_OPTIONS: RASTER_DRAWING_OPTIONS,
   };
 }));

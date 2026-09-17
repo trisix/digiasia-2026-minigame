@@ -113,11 +113,12 @@
     .canvas-wrap {
       position: relative;
       width: 100%;
-      aspect-ratio: 4/1;
-      border: 1.5px solid var(--green);
+      /* DRAWING_ZONE is 560×260px → aspect ratio 560/260 ≈ 2.15:1 */
+      aspect-ratio: 560/260;
+      border: 1.5px solid #1ca629;
       border-radius: 4px;
       overflow: hidden;
-      box-shadow: 0 0 12px rgba(0,255,60,0.15);
+      box-shadow: 0 0 12px rgba(28,166,41,0.2);
     }
     #drawingCanvas {
       position: absolute; inset: 0;
@@ -379,14 +380,14 @@
       ctx.lineWidth   = 18;
       ctx.lineCap     = 'round';
       ctx.lineJoin    = 'round';
-      ctx.strokeStyle = '#00ff3c';  // neon green — matches raster fill color
+      ctx.strokeStyle = '#1ca629';  // campaign accent green — matches raster output
       ctx.shadowColor = 'transparent';
       ctx.shadowBlur  = 0;          // NO blur: clean alpha boundary needed for raster mask
 
       // Placeholder hint
       ctx.save();
       ctx.globalAlpha  = 0.2;
-      ctx.fillStyle    = '#00ff3c';
+      ctx.fillStyle    = '#1ca629';
       ctx.font         = `${Math.round(cssH * 0.28)}px 'Courier New', monospace`;
       ctx.textBaseline = 'middle';
       ctx.textAlign    = 'center';
