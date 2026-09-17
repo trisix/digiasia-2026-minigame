@@ -324,7 +324,9 @@
 
   </div>
 
-  <!-- Core generator (no dependencies) -->
+  <!-- Effect library (must load before generator) -->
+  <script src="event-image-effects-v2.js"></script>
+  <!-- Core generator -->
   <script src="heartificial-generator.js"></script>
 
   <script>
@@ -351,6 +353,7 @@
     // ── State ─────────────────────────────────────────────────────────────
     let userPhotoFile   = null;
     let isDrawing       = false;
+    let hasDrawnOnce    = false;   // clears placeholder hint on first stroke
     let drawHistory     = [];   // array of ImageData snapshots for undo
     const MAX_HISTORY   = 20;
     const dpr           = window.devicePixelRatio || 1;
@@ -372,12 +375,23 @@
 
       const ctx = drawingCanvas.getContext('2d');
       ctx.scale(dpr, dpr);
-      ctx.lineWidth   = 4;
+      // Thick strokes give verticalRaster more area to fill through
+      ctx.lineWidth   = 18;
       ctx.lineCap     = 'round';
       ctx.lineJoin    = 'round';
-      ctx.strokeStyle = '#00ff3c';
-      ctx.shadowColor = '#00ff3c';
-      ctx.shadowBlur  = 3;
+      ctx.strokeStyle = '#00ff3c';  // neon green — matches raster fill color
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur  = 0;          // NO blur: clean alpha boundary needed for raster mask
+
+      // Placeholder hint
+      ctx.save();
+      ctx.globalAlpha  = 0.2;
+      ctx.fillStyle    = '#00ff3c';
+      ctx.font         = `${Math.round(cssH * 0.28)}px 'Courier New', monospace`;
+      ctx.textBaseline = 'middle';
+      ctx.textAlign    = 'center';
+      ctx.fillText('在此書寫你的一句話', cssW / 2, cssH / 2);
+      ctx.restore();
 
       drawHistory = [];
     }
@@ -407,6 +421,14 @@
       isDrawing = true;
       snapshotHistory();
       const ctx = drawingCanvas.getContext('2d');
+      // Clear placeholder hint text on very first stroke
+      if (!hasDrawnOnce) {
+        hasDrawnOnce = true;
+        ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+        // Re-snapshot after clear so undo can get back to blank state
+        drawHistory = [];
+        snapshotHistory();
+      }
       const pos = getPos(e);
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
@@ -434,6 +456,9 @@
       snapshotHistory();
       const ctx = drawingCanvas.getContext('2d');
       ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+      hasDrawnOnce = false;
+      // Re-draw placeholder hint after clear
+      initCanvas();
     });
 
     undoBtn.addEventListener('click', function () {
@@ -519,9 +544,9 @@
       uploadZone.classList.remove('loaded');
       uploadText.textContent = '點此上傳 / 拍照';
 
-      const ctx = drawingCanvas.getContext('2d');
-      ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
-      drawHistory = [];
+      hasDrawnOnce = false;
+      drawHistory  = [];
+      initCanvas();  // redraws placeholder hint
 
       resultSection.classList.remove('visible');
       progressWrap.classList.remove('visible');
