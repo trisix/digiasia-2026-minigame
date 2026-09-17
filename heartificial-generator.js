@@ -65,20 +65,25 @@
     h: Math.round(OUTPUT_H * 0.87),  // 1044px — matches 'frame' layer bottom
   };
 
-  // ─── Drawing zone (v3) ───────────────────────────────────────────────────
-  // Derived from PSB layer '------' dash bbox: x=712–1207, y=609–630.
-  // Zone is centred on the dash with generous height so user strokes
-  // (which include ascenders/descenders) align with the underscores.
+  // ─── Drawing zone (v4) ───────────────────────────────────────────────────
+  // PSB coords (canvas 1920×1200):
+  //   '------' dash layer: x=712–1207, y=609–630
+  //   'Heart' text:        y=425–651
+  //   Title band:          y=425–710
   //
-  //   x=680  (35.4%) — 32px left of dash left edge
-  //   y=490  (40.8%) — 120px above dash top
-  //   w=560  (29.2%) — 32px right margin past dash right edge (x=1240)
-  //   h=260  (21.7%) — descends to y=750, ~120px below dash bottom
+  // Goal: drawing ABOVE the dash, NOT overlapping it.
+  // Zone sits in the 184px gap between title band top and dash top:
+  //   bottom = dash_y1 - 12 margin = 597px  (12px clear above the line)
+  //   height = 160px
+  //   top    = 437px  (12px below title band top at 425)
+  //   x      = dash_x1 - 20 = 692px  (20px left of dash left edge)
+  //   width  = (dash_x2 + 20) - 692 = 535px (20px right margin past dash)
+  //   aspect = 535:160 ≈ 3.34:1
   const DRAWING_ZONE = {
-    x: 680,   // px — fixed to PSB dash coordinates
-    y: 490,   // px
-    w: 560,   // px
-    h: 260,   // px
+    x: 692,   // px — 20px left of dash left edge (712)
+    y: 437,   // px — 12px below title band top (425), 160px above dash
+    w: 535,   // px — spans x=692–1227, covering dash x=712–1207
+    h: 160,   // px — fills the gap, bottom at y=597 (12px above dash y=609)
   };
 
   // ─── Dot halftone options (v3 tuned params + white dots) ─────────────────
