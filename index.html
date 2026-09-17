@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DigiAsia 2026 — HEART___IFICIAL Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --green:   #00ff3c;
+      --magenta: #ff00d8;
+      --black:   #0a0a0a;
+      --grey:    #1a1a1a;
+      --border:  #333;
+    }
+
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      background: var(--black);
+      color: var(--green);
+      margin: 0;
+      padding: 24px 16px 48px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .header h1 {
+      font-size: clamp(1.2rem, 4vw, 2rem);
+      letter-spacing: 0.15em;
+      text-shadow: 0 0 18px var(--green);
+      margin: 0 0 4px;
+    }
+    .header p {
+      color: #555;
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      margin: 0;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────────── */
+    .layout {
+      width: 100%;
+      max-width: 520px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ── Section card ────────────────────────────────────────────────────── */
+    .card {
+      background: var(--grey);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+    }
+    .card-title {
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      color: #666;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .step-badge {
+      display: inline-block;
+      color: var(--green);
+      margin-right: 6px;
+    }
+
+    /* ── Upload ──────────────────────────────────────────────────────────── */
+    .upload-zone {
+      border: 1.5px dashed var(--border);
+      border-radius: 4px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--green);
+      background: rgba(0,255,60,0.04);
+    }
+    .upload-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .upload-zone-icon { font-size: 2rem; margin-bottom: 8px; }
+    .upload-zone-text { font-size: 0.85rem; color: #666; }
+    .upload-zone.loaded { border-color: var(--green); }
+    .upload-zone.loaded .upload-zone-text { color: var(--green); }
+
+    /* Preview thumbnail */
+    .photo-preview {
+      display: none;
+      width: 100%;
+      aspect-ratio: 16/10;
+      object-fit: cover;
+      border-radius: 4px;
+      margin-top: 12px;
+      border: 1px solid var(--border);
+    }
+    .photo-preview.visible { display: block; }
+
+    /* ── Drawing canvas ──────────────────────────────────────────────────── */
+    .canvas-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4/1;
+      border: 1.5px solid var(--green);
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow: 0 0 12px rgba(0,255,60,0.15);
+    }
+    #drawingCanvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      touch-action: none;
+      cursor: crosshair;
+      background: rgba(0,0,0,0.5);
+      display: block;
+    }
+
+    .drawing-hint {
+      color: #444;
+      font-size: 0.72rem;
+      text-align: center;
+      margin-top: 6px;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Controls row ────────────────────────────────────────────────────── */
+    .controls-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────── */
+    .btn {
+      font-family: inherit;
+      font-size: 0.82rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-radius: 3px;
+      cursor: pointer;
+      padding: 10px 16px;
+      transition: all 0.18s ease;
+      border: none;
+      flex: 1;
+    }
+    .btn-primary {
+      background: var(--green);
+      color: #000;
+      font-weight: bold;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: #00cc32;
+      box-shadow: 0 0 14px rgba(0,255,60,0.5);
+    }
+    .btn-primary:disabled {
+      background: #1a3a1a;
+      color: #2a5a2a;
+      cursor: not-allowed;
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--green);
+      border: 1px solid var(--green);
+    }
+    .btn-secondary:hover { background: rgba(0,255,60,0.08); }
+
+    /* ── Progress bar ────────────────────────────────────────────────────── */
+    .progress-wrap {
+      display: none;
+      margin-top: 12px;
+    }
+    .progress-wrap.visible { display: block; }
+    .progress-bar-bg {
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--green);
+      width: 0%;
+      transition: width 0.2s ease;
+      box-shadow: 0 0 8px var(--green);
+    }
+    .progress-label {
+      font-size: 0.7rem;
+      color: #666;
+      margin-top: 4px;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Result ──────────────────────────────────────────────────────────── */
+    .result-section {
+      display: none;
+    }
+    .result-section.visible { display: block; }
+    .result-img-wrap {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .result-img-wrap img {
+      width: 100%;
+      display: block;
+    }
+    .result-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn-download {
+      background: var(--magenta);
+      color: #fff;
+      font-weight: bold;
+      flex: 2;
+    }
+    .btn-download:hover { background: #cc00b0; box-shadow: 0 0 14px rgba(255,0,216,0.5); }
+    .btn-reset {
+      flex: 1;
+    }
+
+    /* ── Error ───────────────────────────────────────────────────────────── */
+    .error-msg {
+      display: none;
+      background: #1a0000;
+      border: 1px solid #660000;
+      color: #ff4444;
+      border-radius: 4px;
+      padding: 10px 14px;
+      font-size: 0.8rem;
+      margin-top: 10px;
+    }
+    .error-msg.visible { display: block; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>[ HEART___IFICIAL ]</h1>
+    <p>DigiAsia 2026 · Intelligent Marketing · 10.27–10.30</p>
+  </div>
+
+  <div class="layout">
+
+    <!-- Step 1: Upload photo -->
+    <div class="card">
+      <div class="card-title">
+        <span class="step-badge">01_</span>上傳你的照片
+      </div>
+      <label class="upload-zone" id="uploadZone">
+        <input type="file" id="photoInput" accept="image/*" capture="user">
+        <div class="upload-zone-icon">📷</div>
+        <div class="upload-zone-text" id="uploadText">點此上傳 / 拍照</div>
+      </label>
+      <img id="photoPreview" class="photo-preview" alt="preview">
+    </div>
+
+    <!-- Step 2: Draw text -->
+    <div class="card">
+      <div class="card-title">
+        <span class="step-badge">02_</span>寫下你的一句話
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="drawingCanvas"></canvas>
+      </div>
+      <p class="drawing-hint">用手指或滑鼠書寫</p>
+      <div class="controls-row">
+        <button class="btn btn-secondary" id="clearBtn">清除重寫</button>
+        <button class="btn btn-secondary" id="undoBtn">上一步</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Generate -->
+    <div class="card">
+      <div class="card-title">
+        <span class="step-badge">03_</span>產生專屬海報
+      </div>
+      <button class="btn btn-primary" id="generateBtn" disabled>
+        產生我的海報
+      </button>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-label" id="progressLabel">處理中...</div>
+      </div>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+
+    <!-- Result -->
+    <div class="card result-section" id="resultSection">
+      <div class="card-title">✓ 你的專屬海報</div>
+      <div class="result-img-wrap">
+        <!--
+          Rendered as <img> (not <canvas>) so mobile users can
+          long-press → "Save Image" / share via LINE / IG.
+        -->
+        <img id="resultImg" alt="DigiAsia 2026 個人海報">
+      </div>
+      <div class="result-actions">
+        <a class="btn btn-download" id="downloadBtn" download="digiasia2026_poster.jpg">
+          儲存圖片
+        </a>
+        <button class="btn btn-secondary btn-reset" id="resetBtn">重新製作</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Core generator (no dependencies) -->
+  <script src="heartificial-generator.js"></script>
+
+  <script>
+    'use strict';
+
+    // ── Element refs ──────────────────────────────────────────────────────
+    const photoInput    = document.getElementById('photoInput');
+    const uploadZone    = document.getElementById('uploadZone');
+    const uploadText    = document.getElementById('uploadText');
+    const photoPreview  = document.getElementById('photoPreview');
+    const drawingCanvas = document.getElementById('drawingCanvas');
+    const clearBtn      = document.getElementById('clearBtn');
+    const undoBtn       = document.getElementById('undoBtn');
+    const generateBtn   = document.getElementById('generateBtn');
+    const progressWrap  = document.getElementById('progressWrap');
+    const progressFill  = document.getElementById('progressFill');
+    const progressLabel = document.getElementById('progressLabel');
+    const errorMsg      = document.getElementById('errorMsg');
+    const resultSection = document.getElementById('resultSection');
+    const resultImg     = document.getElementById('resultImg');
+    const downloadBtn   = document.getElementById('downloadBtn');
+    const resetBtn      = document.getElementById('resetBtn');
+
+    // ── State ─────────────────────────────────────────────────────────────
+    let userPhotoFile   = null;
+    let isDrawing       = false;
+    let drawHistory     = [];   // array of ImageData snapshots for undo
+    const MAX_HISTORY   = 20;
+    const dpr           = window.devicePixelRatio || 1;
+
+    // Template URL — relative to this HTML file
+    const TEMPLATE_URL  = 'assets/chrome_overlay.png';
+
+    // ── Drawing canvas init ───────────────────────────────────────────────
+    function initCanvas() {
+      const wrap   = drawingCanvas.parentElement;
+      const rect   = wrap.getBoundingClientRect();
+      const cssW   = rect.width;
+      const cssH   = rect.height;
+
+      drawingCanvas.width  = Math.round(cssW * dpr);
+      drawingCanvas.height = Math.round(cssH * dpr);
+      drawingCanvas.style.width  = cssW + 'px';
+      drawingCanvas.style.height = cssH + 'px';
+
+      const ctx = drawingCanvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      ctx.lineWidth   = 4;
+      ctx.lineCap     = 'round';
+      ctx.lineJoin    = 'round';
+      ctx.strokeStyle = '#00ff3c';
+      ctx.shadowColor = '#00ff3c';
+      ctx.shadowBlur  = 3;
+
+      drawHistory = [];
+    }
+
+    window.addEventListener('resize', initCanvas);
+    initCanvas();
+
+    // ── Drawing — pointer events (mouse + touch unified) ──────────────────
+    function getPos(e) {
+      const rect = drawingCanvas.getBoundingClientRect();
+      const src  = e.touches ? e.touches[0] : e;
+      return {
+        x: (src.clientX - rect.left),
+        y: (src.clientY - rect.top),
+      };
+    }
+
+    function snapshotHistory() {
+      const ctx = drawingCanvas.getContext('2d');
+      const snap = ctx.getImageData(0, 0, drawingCanvas.width, drawingCanvas.height);
+      drawHistory.push(snap);
+      if (drawHistory.length > MAX_HISTORY) drawHistory.shift();
+    }
+
+    function startDraw(e) {
+      e.preventDefault();
+      isDrawing = true;
+      snapshotHistory();
+      const ctx = drawingCanvas.getContext('2d');
+      const pos = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    }
+
+    function moveDraw(e) {
+      if (!isDrawing) return;
+      e.preventDefault();
+      const ctx = drawingCanvas.getContext('2d');
+      const pos = getPos(e);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    }
+
+    function stopDraw() { isDrawing = false; }
+
+    drawingCanvas.addEventListener('mousedown',  startDraw);
+    drawingCanvas.addEventListener('mousemove',  moveDraw);
+    window.addEventListener('mouseup',           stopDraw);
+    drawingCanvas.addEventListener('touchstart', startDraw, { passive: false });
+    drawingCanvas.addEventListener('touchmove',  moveDraw,  { passive: false });
+    drawingCanvas.addEventListener('touchend',   stopDraw);
+
+    clearBtn.addEventListener('click', function () {
+      snapshotHistory();
+      const ctx = drawingCanvas.getContext('2d');
+      ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+    });
+
+    undoBtn.addEventListener('click', function () {
+      if (!drawHistory.length) return;
+      const ctx  = drawingCanvas.getContext('2d');
+      const snap = drawHistory.pop();
+      ctx.putImageData(snap, 0, 0);
+    });
+
+    // ── Photo upload ──────────────────────────────────────────────────────
+    function handlePhotoFile(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      userPhotoFile = file;
+      const url     = URL.createObjectURL(file);
+      photoPreview.src = url;
+      photoPreview.classList.add('visible');
+      photoPreview.onload = function () { URL.revokeObjectURL(url); };
+      uploadZone.classList.add('loaded');
+      uploadText.textContent = '✓ ' + file.name;
+      generateBtn.disabled = false;
+    }
+
+    photoInput.addEventListener('change', function (e) {
+      handlePhotoFile(e.target.files[0]);
+    });
+
+    // Drag-and-drop
+    uploadZone.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      uploadZone.classList.add('dragover');
+    });
+    uploadZone.addEventListener('dragleave', function () {
+      uploadZone.classList.remove('dragover');
+    });
+    uploadZone.addEventListener('drop', function (e) {
+      e.preventDefault();
+      uploadZone.classList.remove('dragover');
+      handlePhotoFile(e.dataTransfer.files[0]);
+    });
+
+    // ── Generate ──────────────────────────────────────────────────────────
+    generateBtn.addEventListener('click', function () {
+      if (!userPhotoFile) return;
+
+      generateBtn.disabled = true;
+      errorMsg.classList.remove('visible');
+      progressWrap.classList.add('visible');
+      resultSection.classList.remove('visible');
+
+      HeartificialGenerator.generate({
+        photo:      userPhotoFile,
+        drawing:    drawingCanvas,
+        template:   TEMPLATE_URL,
+        onProgress: function (pct) {
+          progressFill.style.width  = pct + '%';
+          progressLabel.textContent = pct < 100 ? '處理中 ' + pct + '%...' : '完成！';
+        },
+      })
+      .then(function (blob) {
+        const url         = URL.createObjectURL(blob);
+        resultImg.src     = url;
+        downloadBtn.href  = url;
+        resultSection.classList.add('visible');
+        resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        progressWrap.classList.remove('visible');
+        generateBtn.disabled = false;
+      })
+      .catch(function (err) {
+        console.error('[HeartificialGenerator]', err);
+        errorMsg.textContent = '產生失敗：' + err.message;
+        errorMsg.classList.add('visible');
+        progressWrap.classList.remove('visible');
+        generateBtn.disabled = false;
+      });
+    });
+
+    // ── Reset ─────────────────────────────────────────────────────────────
+    resetBtn.addEventListener('click', function () {
+      userPhotoFile = null;
+      photoInput.value = '';
+      photoPreview.classList.remove('visible');
+      photoPreview.src = '';
+      uploadZone.classList.remove('loaded');
+      uploadText.textContent = '點此上傳 / 拍照';
+
+      const ctx = drawingCanvas.getContext('2d');
+      ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+      drawHistory = [];
+
+      resultSection.classList.remove('visible');
+      progressWrap.classList.remove('visible');
+      errorMsg.classList.remove('visible');
+      generateBtn.disabled = true;
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  </script>
+
+</body>
+</html>
